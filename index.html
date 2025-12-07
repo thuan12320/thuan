@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BloxStudy - Debug Mode</title>
+    <title>BloxStudy - Roblox Learning AI</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -16,72 +16,134 @@
         }
     }
     </script>
+    
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Fredoka', sans-serif; }
+        
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #00b06f;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Hiệu ứng rung nhẹ khi hover */
+        .hover-shake:hover {
+            animation: shake 0.5s;
+            animation-iteration-count: infinite;
+        }
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-1px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
     </style>
 </head>
 <body class="bg-[#111] text-white">
-    <div id="loading-text" class="fixed inset-0 flex items-center justify-center text-2xl font-bold text-yellow-400">
-        ⌛ Đang tải dữ liệu... (Vui lòng đợi 5-10 giây)
-    </div>
-    <div id="error-box" class="fixed inset-0 bg-red-900/90 text-white p-8 hidden z-50 font-mono overflow-auto">
-        <h2 class="text-3xl font-bold mb-4">⚠️ CÓ LỖI XẢY RA</h2>
-        <p class="mb-2">Hãy chụp màn hình này gửi cho tôi để sửa ngay lập tức:</p>
-        <div id="error-content" class="bg-black p-4 rounded border border-red-500 whitespace-pre-wrap"></div>
-    </div>
-
     <div id="root"></div>
 
-    <script>
-        window.onerror = function(msg, url, line, col, error) {
-            document.getElementById('loading-text').style.display = 'none';
-            document.getElementById('error-box').classList.remove('hidden');
-            document.getElementById('error-content').innerText = `Lỗi: ${msg}\nTại dòng: ${line}\nChi tiết: ${error ? error.stack : 'Không rõ'}`;
-        };
-    </script>
-
     <script type="text/babel" data-type="module">
-        import React, { useState, useEffect } from 'react';
+        import React, { useState, useEffect, useRef } from 'react';
         import { createRoot } from 'react-dom/client';
-        import { Play, Check, X, Award, Zap, RefreshCcw, Home, Sparkles, Loader, ArrowRight, BookOpen, User, Skull, Trophy } from 'lucide-react';
+        import { BookOpen, Star, Trophy, ArrowRight, CheckCircle, XCircle, RefreshCcw, Home, Award, Zap, Sparkles, Loader, Check, X, Play, User, Search, Bell, Gamepad2, Skull, MessageSquare } from 'lucide-react';
 
-        // --- CẤU HÌNH API ---
+        // --- API KEY CỦA BẠN ---
         const apiKey = "AIzaSyAOBceTdY5nggWX3s7Pyhe1GPKag2IDv1U"; 
 
-        // --- APP LOGIC RÚT GỌN ĐỂ TEST ---
-        function App() {
-            const [status, setStatus] = useState('welcome');
+        const callGeminiAPI = async (prompt, isJson = false) => {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = { contents: [{ parts: [{ text: prompt }] }] };
+            if (isJson) {
+                payload.generationConfig = {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            questions: {
+                                type: "ARRAY",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        id: { type: "INTEGER" },
+                                        type: { type: "STRING" },
+                                        question: { type: "STRING" },
+                                        options: { type: "ARRAY", items: { type: "STRING" } },
+                                        answer: { type: "STRING" },
+                                        explanation: { type: "STRING" }
+                                    },
+                                    required: ["id", "type", "question", "options", "answer", "explanation"]
+                                }
+                            }
+                        }
+                    }
+                };
+            }
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) throw new Error('Lỗi API');
+                const data = await response.json();
+                const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                return isJson ? JSON.parse(text) : text;
+            } catch (error) {
+                console.error("Gemini API Error:", error);
+                alert("Lỗi AI: " + error.message);
+                return null;
+            }
+        };
 
-            return (
-                <div className="min-h-screen bg-[#111] text-white flex flex-col items-center justify-center p-4">
-                    {status === 'welcome' && (
-                        <div className="bg-[#232527] p-8 rounded-2xl border border-gray-700 text-center animate-bounce">
-                            <h1 className="text-4xl font-black text-green-400 mb-4">🚀 BLOX STUDY ĐÃ CHẠY!</h1>
-                            <p className="text-gray-300 mb-6">Nếu bạn thấy bảng này, nghĩa là Web KHÔNG bị lỗi.</p>
-                            <button onClick={() => setStatus('game')} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-xl font-bold transition">
-                                Bấm để vào Game
-                            </button>
-                        </div>
-                    )}
-                    
-                    {status === 'game' && (
-                        <div className="text-center">
-                            <h2 className="text-2xl font-bold text-yellow-400 mb-4">🎉 Vào game thành công!</h2>
-                            <p className="text-gray-400">Code React đang hoạt động tốt.</p>
-                            <button onClick={() => alert('API Key: ' + apiKey.substring(0,5) + '...')} className="mt-4 border border-white/20 px-4 py-2 rounded">Kiểm tra API Key</button>
-                        </div>
-                    )}
-                </div>
-            );
-        }
+        const RobuxIcon = ({ className }) => (
+            <svg viewBox="0 0 100 100" className={className} fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M50 2 L93.3 27 V73 L50 98 L6.7 73 V27 Z M32 32 L68 32 L68 68 L32 68 Z" fillRule="evenodd" />
+            </svg>
+        );
 
-        // Tắt màn hình chờ khi code chạy xong
-        const root = createRoot(document.getElementById('root'));
-        root.render(<App />);
-        document.getElementById('loading-text').style.display = 'none';
-    </script>
-</body>
-</html>
+        const getAvatar = (seed, type = 'bottts') => `https://api.dicebear.com/9.x/${type}/svg?seed=${seed}&backgroundColor=b6e3f4,c0aede,d1d4f9`;
+
+        const MOCK_LEADERBOARD = [
+            { id: 'u1', name: 'BloxMaster_99', xp: 2450, level: 12, avatar: getAvatar('BloxMaster', 'bottts') },
+            { id: 'u2', name: 'NoobSlayer', xp: 2100, level: 10, avatar: getAvatar('NoobSlayer', 'avataaars') },
+            { id: 'u3', name: 'BuildermanFan', xp: 1850, level: 9, avatar: getAvatar('Builder', 'bottts') },
+            { id: 'u4', name: 'ObbyQueen', xp: 1600, level: 8, avatar: getAvatar('Queen', 'avataaars') },
+            { id: 'u5', name: 'RedValkyrie', xp: 1400, level: 7, avatar: getAvatar('RedVal', 'bottts') },
+        ];
+
+        const CURRICULUM_DATA = [
+            {
+                id: 1, title: "Bloxburg City (Unit 1)",
+                image: "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?q=80&w=800&auto=format&fit=crop", 
+                description: "Khám phá thành phố! Học từ vựng về địa điểm và cấu trúc Is there/Are there.",
+                likes: "94%", active: "12.5k",
+                questions: [
+                    { id: 1, type: "choice", question: "Is there a _______ in your town where we can see old things?", options: ["library", "museum", "square", "bridge"], answer: "museum", explanation: "Museum (bảo tàng) là nơi trưng bày đồ cổ." },
+                    { id: 2, type: "grammar_sort", question: "Build the correct sentence structure:", words: ["Are", "there", "any", "shops", "here?"], answer: "Are there any shops here?", explanation: "Cấu trúc câu hỏi số nhiều: Are there + any + danh từ số nhiều?" },
+                    { id: 3, type: "choice", question: "Which word is the opposite of 'modern'?", options: ["new", "clean", "old", "ugly"], answer: "old", explanation: "Modern (hiện đại) trái nghĩa với Old (cũ)." },
+                    { id: 4, type: "choice", question: "The market is _______ the station.", options: ["next", "near", "between", "opposite to"], answer: "near", explanation: "'Near' (gần) không cần 'to'. 'Next' đi với 'to'." }
+                ]
+            },
+            {
+                id: 2, title: "Daily Life Tycoon (Unit 2)",
+                image: "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?q=80&w=800&auto=format&fit=crop", 
+                description: "Quản lý thời gian! Học về thói quen hàng ngày và thì Hiện tại đơn.",
+                likes: "91%", active: "8.2k",
+                questions: [
+                    { id: 1, type: "choice", question: "I usually _______ up at 6.00 a.m.", options: ["get", "gets", "getting", "got"], answer: "get", explanation: "Hiện tại đơn với chủ ngữ 'I' dùng động từ nguyên mẫu." },
+                    { id: 2, type: "choice", question: "_______ your dad watch TV in the evening?", options: ["Do", "Is", "Does", "Are"], answer: "Does", explanation: "Chủ ngữ số ít (your dad) dùng trợ động từ 'Does'." }
+                ]
